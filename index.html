@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riwayat Pendidikan</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 30px;
+            background: #f3f4f8;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            text-align: center;
+            color: #5546a5;
+        }
+
+        p {
+            text-align: center;
+            color: #777;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 7px;
+        }
+
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 7px;
+            background: #5546a5;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #40337f;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background: #5546a5;
+            color: white;
+        }
+
+        .download {
+            background: #198754;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Riwayat Pendidikan</h1>
+    <p>Database Daftar Riwayat Pendidikan</p>
+
+    <h3>Tambah Data Pendidikan</h3>
+
+    <input type="text" id="sekolah"
+        placeholder="Nama Sekolah">
+
+    <input type="number" id="masuk"
+        placeholder="Tahun Masuk">
+
+    <input type="number" id="lulus"
+        placeholder="Tahun Lulus">
+
+    <input type="text" id="keterangan"
+        placeholder="Keterangan">
+
+    <button onclick="tambahData()">Tambah Data</button>
+
+    <h3>Data Riwayat Pendidikan</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Nama Sekolah</th>
+                <th>Tahun Masuk</th>
+                <th>Tahun Lulus</th>
+                <th>Keterangan</th>
+            </tr>
+        </thead>
+
+        <tbody id="dataRiwayat"></tbody>
+    </table>
+
+    <button class="download" onclick="downloadDatabase()">
+        Download Database SQLite
+    </button>
+
+    <p id="status">Menyiapkan database...</p>
+
+</div>
+
+<script src="sql-wasm.js"></script>
+
+<script>
+    let db;
+
+    async function mulaiDatabase() {
+        try {
+            const SQL = await initSqlJs({
+                locateFile: file => file
+            });
+
+            try {
+                const response = await fetch("riwayat.db");
+
+                if (response.ok) {
+                    const data = await response.arrayBuffer();
+                    db = new SQL.Database(new Uint8Array(data));
+                } else {
+                    db = new SQL.Database();
+                }
+
+            } catch (error) {
+                db = new SQL.Database();
+            }
+
+            db.run(`
+                CREATE TABLE IF NOT EXISTS riwayat (
+                    nama_sekolah TEXT,
+                    tahun_masuk INTEGER,
+                    tahun_lulus INTEGER,
+                    keterangan TEXT
+                )
+            `);
+
+            tampilkanData();
+
+            document.getElementById("status").innerText =
+                "Database SQLite berhasil dijalankan.";
+
+        } catch (error) {
+            document.getElementById("status").innerText =
+                "Gagal menjalankan database: " + error.message;
+        }
+    }
+
+    function tambahData() {
+        const sekolah = document.getElementById("sekolah").value;
+        const masuk = document.getElementById("masuk").value;
+        const lulus = document.getElementById("lulus").value;
+        const keterangan = document.getElementById("keterangan").value;
+
+        if (!sekolah || !masuk || !lulus || !keterangan) {
+            alert("Semua kolom harus diisi!");
+            return;
+        }
+
+        db.run(
+            `INSERT INTO riwayat VALUES (?, ?, ?, ?)`,
+            [sekolah, Number(masuk), Number(lulus), keterangan]
+        );
+
+        tampilkanData();
+
+        document.getElementById("sekolah").value = "";
+        document.getElementById("masuk").value = "";
+        document.getElementById("lulus").value = "";
+        document.getElementById("keterangan").value = "";
+    }
+
+    function tampilkanData() {
+        const hasil = db.exec("SELECT * FROM riwayat");
+
+        let html = "";
+
+        if (hasil.length > 0) {
+            hasil[0].values.forEach((baris, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        ${baris.map(item =>
+                            `<td>${String(item).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</td>`
+                        ).join("")}
+                    </tr>
+                `;
+            });
+        }
+
+        document.getElementById("dataRiwayat").innerHTML = html;
+    }
+
+    function downloadDatabase() {
+        const data = db.export();
+
+        const blob = new Blob([data], {
+            type: "application/x-sqlite3"
+        });
+
+        const link = document.createElement("a");
+
+        link.href = URL.createObjectURL(blob);
+        link.download = "riwayat.db";
+        link.click();
+
+        URL.revokeObjectURL(link.href);
+    }
+
+    mulaiDatabase();
+</script>
+
+</body>
+</html>
